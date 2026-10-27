@@ -20,7 +20,21 @@ Whenever a user asks you a question, you need to identify the query context and 
 
 The user has selected this context to help you with your response:
 
+{% if context is mapping %}
+{% if context.get('research_memory') %}
+# 课题记忆（跨会话接续）
+
+{{ context.research_memory }}
+
+{% endif %}
+{% for key, value in context.items() %}
+{% if key != 'research_memory' %}
+{{ value }}
+{% endif %}
+{% endfor %}
+{% else %}
 {{context}}
+{% endif %}
 {% endif %}
 
 # MATH FORMATTING

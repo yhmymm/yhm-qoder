@@ -19,11 +19,15 @@ from open_notebook.research.models import (
     CreateDraftRequest,
     DraftResponse,
     EnableResearchRequest,
+    ExtractCandidateRequest,
+    ExtractCandidateResponse,
+    ExtractCandidateItem,
     MemoryDetailResponse,
     MemoryItemResponse,
     MemoriesResponse,
     MemoryType,
     ReportRequest,
+    ReportResponse,
     ResumeRequest,
     ResumeResponse,
     RevisionsResponse,
@@ -407,3 +411,167 @@ async def get_trace(trace_id: str):
         duration_ms=trace.get("duration_ms"),
         error_code=trace.get("error_code"),
     )
+
+
+# --- M3: Model extraction ---
+
+
+@router.post(
+    "/notebooks/{notebook_id}/memory-extract",
+    response_model=ExtractCandidateResponse,
+)
+async def extract_candidates(notebook_id: str, request: ExtractCandidateRequest):
+    """Extract memory candidates from selected sources/notes using LLM."""
+    trace_id = f"trace-{uuid.uuid4().hex[:12]}"
+
+    try:
+        # Build fragments from sources and notes
+        fragments = []
+        frag_idx = 0
+
+        # Fetch sources
+        for source_id in request.source_ids:
+            try:
+                from open_notebook.domain.notebook import Source
+                source = await Source.get(source_id)
+                if source:
+                    frag_idx += 1
+                    content = getattr(source, "content", "") or getattr(source, "full_text", "") or ""
+                    fragments.append({
+                        "index": frag_idx,
+                        "kind": "source",
+                        "content": content[:2000],
+                        "source_id": source_id,
+                        "title": getattr(source, "title", ""),
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch source {source_id}: {e}")
+
+        # Fetch notes
+        for note_id in request.note_ids:
+            try:
+                from open_notebook.domain.notebook import Note
+                note = await Note.get(note_id)
+                if note:
+                    frag_idx += 1
+                    content = getattr(note, "content", "") or ""
+                    fragments.append({
+                        "index": frag_idx,
+                        "kind": "note",
+                        "content": content[:2000],
+                        "source_id": note_id,
+                        "title": getattr(note, "title", ""),
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch note {note_id}: {e}")
+
+        if not fragments:
+            raise HTTPException(
+                status_code=400,
+                detail="未提供有效的资料或笔记片段",
+            )
+
+        # Call extraction service
+        from open_notebook.research.extraction_service import (
+            extract_candidates as do_extract,
+            ExtractionError,
+        )
+
+        raw_candidates = await do_extract(
+            fragments=fragments,
+            user_instruction=request.user_instruction,
+            model_id=request.model_id,
+        )
+
+        candidates = [
+            ExtractCandidateItem(
+                type=c.get("type", "goal"),
+                content=c.get("content", ""),
+                epistemic_status=c.get("epistemic_status", "user_statement"),
+                evidence_refs=c.get("evidence_refs", []),
+                validation_error=c.get("validation_error"),
+            )
+            for c in raw_candidates
+        ]
+
+        return ExtractCandidateResponse(
+            trace_id=trace_id,
+            candidates=candidates,
+            fragment_count=len(fragments),
+            model_used=request.model_id,
+        )
+
+    except HTTPException:
+        raise
+    except ExtractionError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error(f"Extraction failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- M4: Report generation ---
+
+
+@router.post(
+    "/notebooks/{notebook_id}/reports",
+    response_model=ReportResponse,
+)
+async def generate_report(notebook_id: str, request: ReportRequest):
+    """Generate a structured Markdown report from current memories."""
+    try:
+        from open_notebook.research.report_service import (
+            generate_report as do_generate,
+            ReportError,
+        )
+
+        title = request.title or "研究进展报告"
+        content, metadata = await do_generate(notebook_id, title=title)
+
+        return ReportResponse(
+            report_id=metadata.get("report_id", ""),
+            trace_id=metadata.get("trace_id", ""),
+            title=title,
+            content=content,
+            memory_refs=metadata.get("memory_refs", []),
+            evidence_refs=metadata.get("evidence_refs", []),
+            omitted_items=metadata.get("omitted_items", []),
+        )
+
+    except ReportError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Report generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/notebooks/{notebook_id}/reports/{report_id}/export",
+)
+async def export_report(notebook_id: str, report_id: str):
+    """Export a report as Markdown file."""
+    from fastapi.responses import PlainTextResponse
+
+    # For now, regenerate the report (in production, we'd cache it)
+    try:
+        from open_notebook.research.report_service import (
+            generate_report as do_generate,
+            ReportError,
+        )
+
+        content, metadata = await do_generate(notebook_id)
+        return PlainTextResponse(
+            content=content,
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f'attachment; filename="report-{report_id}.md"',
+                "X-Report-Id": report_id,
+                "X-Trace-Id": metadata.get("trace_id", ""),
+            },
+        )
+
+    except ReportError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Report export failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

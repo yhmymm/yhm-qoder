@@ -338,9 +338,26 @@ async def execute_chat(request: ExecuteChatRequest):
         # Prepare state for execution
         state_values = current_state.values if current_state else {}
         state_values["messages"] = state_values.get("messages", [])
-        state_values["context"] = request.context
         state_values["notebook"] = notebook
         state_values["model_override"] = model_override
+
+        # Inject research memory context from PowerContext
+        research_context = ""
+        research_metadata = {}
+        if notebook:
+            try:
+                from open_notebook.research.context_service import build_research_context
+                research_context, research_metadata = await build_research_context(
+                    str(notebook.id), user_query=request.message
+                )
+            except Exception as e:
+                logger.warning(f"Research context failed (non-fatal): {e}")
+
+        # Merge research context into the existing context dict
+        context_data = request.context if isinstance(request.context, dict) else {}
+        if research_context:
+            context_data["research_memory"] = research_context
+        state_values["context"] = context_data
 
         # Add user message to state
         from langchain_core.messages import HumanMessage

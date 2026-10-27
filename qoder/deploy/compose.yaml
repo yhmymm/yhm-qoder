@@ -1,0 +1,84 @@
+# Docker Compose for 研续 ResearchMemory
+# Includes: SurrealDB, PowerContext, Open Notebook (modified)
+
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v2.2.1
+    command: >
+      start --log info
+      --user ${SURREAL_USER:-root}
+      --pass ${SURREAL_PASS:-root}
+      rocksdb:/data/mydatabase.db
+    volumes:
+      - surreal_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - research-net
+
+  powercontext:
+    build:
+      context: ./powercontext
+      dockerfile: Dockerfile
+    command: >
+      powercontext server run
+      --host 0.0.0.0
+      --port 8000
+      --role all
+      --data-dir /data
+    volumes:
+      - powercontext_data:/data
+    environment:
+      - POWERCONTEXT_ACCESS_MODE=${POWERCONTEXT_ACCESS_MODE:-disabled}
+      - POWERCONTEXT_LOG_LEVEL=${POWERCONTEXT_LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - research-net
+
+  open-notebook:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-5055}:5055"
+      - "${FRONTEND_PORT:-8502}:3000"
+    environment:
+      - SURREAL_HOST=surrealdb
+      - SURREAL_PORT=8000
+      - SURREAL_USER=${SURREAL_USER:-root}
+      - SURREAL_PASS=${SURREAL_PASS:-root}
+      - SURREAL_NS=${SURREAL_NS:-open_notebook}
+      - SURREAL_DB=${SURREAL_DB:-open_notebook}
+      - RESEARCH_MEMORY_ENABLED=${RESEARCH_MEMORY_ENABLED:-true}
+      - RESEARCH_POWERCONTEXT_BASE_URL=http://powercontext:8000
+      - RESEARCH_POWERCONTEXT_TOKEN=${RESEARCH_POWERCONTEXT_TOKEN:-}
+      - RESEARCH_POWERCONTEXT_CONNECT_TIMEOUT_SECONDS=${RESEARCH_POWERCONTEXT_CONNECT_TIMEOUT_SECONDS:-2}
+      - RESEARCH_POWERCONTEXT_READ_TIMEOUT_SECONDS=${RESEARCH_POWERCONTEXT_READ_TIMEOUT_SECONDS:-8}
+      - RESEARCH_MEMORY_CONTEXT_MAX_BYTES=${RESEARCH_MEMORY_CONTEXT_MAX_BYTES:-12000}
+      - RESEARCH_MEMORY_SEARCH_MODE=${RESEARCH_MEMORY_SEARCH_MODE:-text}
+      - OPEN_NOTEBOOK_ENCRYPTION_KEY=${OPEN_NOTEBOOK_ENCRYPTION_KEY:-}
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+      powercontext:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - research-net
+
+volumes:
+  surreal_data:
+  powercontext_data:
+
+networks:
+  research-net:
+    driver: bridge

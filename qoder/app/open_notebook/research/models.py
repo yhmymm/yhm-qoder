@@ -386,3 +386,45 @@ class ResearchHealthResponse(BaseModel):
     powercontext_available: bool
     binding_status: Optional[str] = None
     scope_id: Optional[str] = None
+
+
+class ExtractCandidateRequest(BaseModel):
+    """Request to extract candidates from sources/notes."""
+
+    source_ids: List[str] = Field(default_factory=list)
+    note_ids: List[str] = Field(default_factory=list)
+    session_id: Optional[str] = None
+    user_instruction: Optional[str] = None
+    model_id: Optional[str] = None
+
+
+class ExtractCandidateItem(BaseModel):
+    """A single extracted candidate."""
+
+    type: str
+    content: str
+    epistemic_status: str
+    evidence_refs: List[Dict[str, Any]] = Field(default_factory=list)
+    validation_error: Optional[str] = None
+
+
+class ExtractCandidateResponse(BaseModel):
+    """Response from candidate extraction."""
+
+    trace_id: str
+    candidates: List[ExtractCandidateItem]
+    fragment_count: int
+    model_used: Optional[str] = None
+
+
+class ReportResponse(BaseModel):
+    """Response from report generation."""
+
+    report_id: str
+    trace_id: str
+    title: str
+    content: str
+    memory_refs: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence_refs: List[Dict[str, Any]] = Field(default_factory=list)
+    omitted_items: List[Dict[str, Any]] = Field(default_factory=list)
+    note_id: Optional[str] = None
