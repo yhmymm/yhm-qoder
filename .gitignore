@@ -1,0 +1,8 @@
+
+# Local data directories
+qoder/deploy/surreal_data/
+qoder/deploy/powercontext/data/
+.vscode/
+
+# Local env (not secrets)
+qoder/app/.env

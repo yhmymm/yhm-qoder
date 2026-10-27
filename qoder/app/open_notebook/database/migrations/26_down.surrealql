@@ -1,0 +1,8 @@
+-- Migration 26 rollback: remove research memory tables
+REMOVE TABLE IF EXISTS research_report;
+REMOVE TABLE IF EXISTS research_trace;
+REMOVE TABLE IF EXISTS research_memory_operation;
+REMOVE TABLE IF EXISTS research_memory_link;
+REMOVE TABLE IF EXISTS research_memory_draft;
+REMOVE TABLE IF EXISTS research_scope_binding;
+REMOVE TABLE IF EXISTS research_deployment_config;
