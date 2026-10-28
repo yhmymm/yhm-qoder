@@ -77,7 +77,7 @@
 
 ### 跨会话接续
 
-![跨会话接续](site/image/feature2-cross-session.png)
+![跨会话接续](qoder/site/image/feature2-cross-session.png)
 
 在 Chat 面板发送「继续上次研究」，系统自动从 PowerContext 读取 [M1]-[M4] 研究记忆，无缝衔接上次研究进度。
 
