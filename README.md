@@ -71,7 +71,7 @@
 
 ### 课题管理
 
-![课题管理](/yhm-qoder/qoder/site/image/feature1-notebook-list.png)
+![课题管理](qoder/site/image/feature1-notebook-list.png)
 
 左侧导航栏包含 Sources、Notebooks、Ask & Search、Models 四个模块。右侧 Notebook 卡片网格展示所有研究课题，每个 Notebook 绑定独立的 PowerContext Scope。
 
@@ -83,49 +83,49 @@
 
 ### 研究记忆管理
 
-![研究记忆管理](site/image/feature3-memory-confirmation1.png)
+![研究记忆管理](qoder/site/image/feature3-memory-confirmation1.png)
 
 在 Notebook 详情页点击「研究记忆」按钮，显示所有研究记忆（类型标签、内容摘要、版本号），支持修订和遗忘操作。
 
 ### 候选记忆确认
 
-![候选记忆确认](site/image/feature3-memory-confirmation2.png)
+![候选记忆确认](qoder/site/image/feature3-memory-confirmation2.png)
 
 点击「提取候选记忆」，LLM 从资料中自动抽取结构化候选记忆。用户逐条确认、修订后确认或拒绝，候选不会自动成为正式记忆。
 
 ### 提问与搜索
 
-![提问界面](site/image/feature4-evidence-qa1.png)
+![提问界面](qoder/site/image/feature4-evidence-qa1.png)
 
 在「提问与搜索」页面选择「提问 (beta)」标签，输入问题，系统展示推理过程和搜索词策略，支持选择 Notebook 范围和模型配置。
 
 ### 独立回答
 
-![独立回答](site/image/feature4-evidence-qa2.png)
+![独立回答](qoder/site/image/feature4-evidence-qa2.png)
 
 AI 生成的结构化回答，嵌入引用标注（如 `[source_insight:xxx]`、`[note:xxx]`），点击引用可查看原始资料或记忆详情。
 
 ### 最终回答
 
-![最终回答](site/image/feature4-evidence-qa3.png)
+![最终回答](qoder/site/image/feature4-evidence-qa3.png)
 
 Markdown 格式的结构化总结，引用真实资料来源，内容基于知识库文档生成，兼具学术严谨性与可读性。
 
 ### 知识库搜索
 
-![知识库搜索](site/image/feature4-evidence-qa4.png)
+![知识库搜索](qoder/site/image/feature4-evidence-qa4.png)
 
 支持文本搜索和向量搜索两种模式，可限定搜索范围（来源、笔记），结果按相关度排序。
 
 ### 组会报告生成
 
-![组会报告](site/image/feature5-report.png)
+![组会报告](qoder/site/image/feature5-report.png)
 
 一键生成六段式 Markdown 研究报告，所有引用均关联到真实的记忆 ID 和资料来源，支持保存为 Notebook 笔记。
 
 ### 修订与遗忘
 
-![修订与遗忘](site/image/feature6-memory-revision.png)
+![修订与遗忘](qoder/site/image/feature6-memory-revision.png)
 
 支持 ETag 乐观并发修订，保留完整历史版本。可从主动记忆中移除（遗忘）条目，底部显示 ETag 版本信息确保并发安全。
 
