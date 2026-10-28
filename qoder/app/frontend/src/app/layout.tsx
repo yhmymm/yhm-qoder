@@ -47,6 +47,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${instrumentSans.variable} ${bricolageGrotesque.variable} ${splineSansMono.variable} font-sans`}
+        suppressHydrationWarning
       >
         <ErrorBoundary>
           <ThemeProvider>

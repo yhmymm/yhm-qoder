@@ -6,7 +6,7 @@ import type { NextConfig } from "next";
 // protocol/port) to access the dev server from a LAN IP or custom hostname.
 const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS
   ? process.env.NEXT_ALLOWED_DEV_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
-  : undefined;
+  : ['localhost', '127.0.0.1'];
 
 const nextConfig: NextConfig = {
   // Enable standalone output for optimized Docker deployment

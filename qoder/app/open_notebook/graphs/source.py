@@ -1,5 +1,6 @@
 import operator
 import os
+import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -11,6 +12,135 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 from loguru import logger
 from typing_extensions import Annotated, TypedDict
+
+
+def _clean_pdf_extraction_artifacts(text: str) -> str:
+    """Clean common PDF extraction artifacts from docling output.
+
+    Multi-column academic papers and embedded figures produce garbled text:
+    - Lines of isolated single characters from diagrams/charts
+    - Words concatenated without spaces (PDF extraction loses word boundaries)
+    - Lines that are mostly single-character "words" from figure text
+    - Numeric data dumps from charts/tables
+
+    This post-processing removes the worst artifacts while preserving
+    legitimate content. Uses wordninja to split concatenated words.
+    """
+    if not text:
+        return text
+
+    lines = text.split("\n")
+    cleaned_lines: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Skip lines that are mostly single-character "words" (figure text)
+        # e.g., "D e i c e t c S t c R h e e a m o so a n i L n i g nking"
+        # e.g., "C V o a l l u u m es n Checker LLM SQL with Confidence"
+        words = stripped.split()
+        if len(words) >= 4:
+            single_char_words = sum(1 for w in words if len(w) == 1 and w.isalpha())
+            # If more than 25% of words are single letters, or there are 6+ single letters
+            if single_char_words >= 6 or single_char_words / len(words) > 0.25:
+                continue
+
+        # Skip lines that are just sequences of numbers (chart data)
+        # e.g., "140 120 100 80 60 40 20 0"
+        if stripped and all(c.isdigit() or c.isspace() or c in ".,-" for c in stripped):
+            digit_count = sum(1 for c in stripped if c.isdigit())
+            if digit_count > 5:
+                continue
+
+        # Skip lines with spaced-out SQL keywords (PDF figure extraction artifact)
+        # e.g., "S ELE CT Checker N ULL Checker" or "J OI N... L LM S QL"
+        spaced_sql_patterns = re.findall(
+            r'\b[A-Z]\s+[A-Z]\s+[A-Z]\s+[A-Z]+\b', stripped
+        )
+        if len(spaced_sql_patterns) >= 2:
+            continue
+
+        cleaned_lines.append(line)
+
+    result = "\n".join(cleaned_lines)
+
+    # Fix missing spaces at camelCase boundaries (conservative)
+    # Only fix lowercase -> uppercase transitions that indicate word boundaries
+    # e.g., "frameworkPhase" -> "framework Phase"
+    # Avoid splitting acronyms (SQL, LLM) or all-caps names
+    result = re.sub(
+        r'([a-z])([A-Z][a-z]+)',
+        r'\1 \2',
+        result
+    )
+
+    # Split concatenated words using wordninja (PDF extraction often loses
+    # word boundaries, producing unreadable blocks like
+    # "referstothetaskofconvertingnaturallanguagequeriesinto").
+    # Process the text word-by-word to handle both long lowercase runs
+    # (leftover from camelCase splitting) and mixed-case concatenations.
+    try:
+        import wordninja
+
+        def _split_long_token(token: str) -> str:
+            """Split a long alpha-only token into individual words."""
+            if len(token) < 15 or not token.isalpha():
+                return token
+            # Skip tokens that are all uppercase (acronyms like SQL, LLM)
+            if token.isupper():
+                return token
+            # Use wordninja to split (handles both all-lowercase and camelCase)
+            parts = wordninja.split(token)
+            if len(parts) <= 1:
+                return token  # No split needed
+            # Preserve original casing for the first word if it was capitalized
+            if token[0].isupper() and parts:
+                parts[0] = parts[0].capitalize()
+            return " ".join(parts)
+
+        # Process each whitespace-delimited token
+        def _process_tokens(text: str) -> str:
+            return re.sub(r'\b([a-zA-Z]{15,})\b',
+                         lambda m: _split_long_token(m.group(1)),
+                         text)
+
+        result = _process_tokens(result)
+
+        # Second pass: fix words concatenated after punctuation
+        # e.g., "SQL.Large" -> "SQL. Large", "engineering.However" -> "engineering. However"
+        result = re.sub(r'([.!?;:,])([A-Z][a-z]{2,})', r'\1 \2', result)
+        # Also fix lowercase-after-punctuation
+        result = re.sub(r'([.!?;:,])([a-z]{3,})', r'\1 \2', result)
+
+        # Third pass: split any remaining long alpha sequences that weren't
+        # caught by word boundaries (e.g., embedded in hyphenated text)
+        def _split_remaining(text: str) -> str:
+            parts = []
+            for token in text.split():
+                # Extract alpha-only segments from tokens with mixed content
+                alpha_segments = re.findall(r'[a-zA-Z]{15,}', token)
+                if alpha_segments and not token.isalpha():
+                    new_token = token
+                    for seg in alpha_segments:
+                        if seg.isupper() or len(seg) < 15:
+                            continue
+                        split_seg = " ".join(wordninja.split(seg))
+                        if split_seg != seg.lower():
+                            new_token = new_token.replace(seg, split_seg, 1)
+                    parts.append(new_token)
+                else:
+                    parts.append(token)
+            return " ".join(parts)
+
+        result = _split_remaining(result)
+    except ImportError:
+        logger.debug("wordninja not available, skipping word splitting")
+
+    # Remove excessive blank lines (3+ consecutive -> 2)
+    result = re.sub(r'\n{3,}', '\n\n', result)
+
+    return result.strip()
+
 
 from open_notebook.ai.models import Model, ModelManager
 from open_notebook.domain.content_settings import ContentSettings
@@ -281,7 +411,7 @@ async def save_source(state: SourceState) -> dict:
     source.asset = Asset(
         url=content_state.get("url"), file_path=content_state.get("file_path")
     )
-    source.full_text = extraction.content
+    source.full_text = _clean_pdf_extraction_artifacts(extraction.content)
 
     # Preserve user-set title; only overwrite placeholder or empty titles
     if extraction.title and (not source.title or source.title == "Processing..."):

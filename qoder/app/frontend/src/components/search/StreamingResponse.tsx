@@ -119,7 +119,10 @@ export function StreamingResponse({
               <CardContent className="space-y-2 pt-0">
                 {answers.map((answer, i) => (
                   <div key={i} className="p-3 rounded-md bg-muted">
-                    <p className="text-sm">{answer}</p>
+                    <FinalAnswerContent
+                      content={answer}
+                      onReferenceClick={handleReferenceClick}
+                    />
                   </div>
                 ))}
               </CardContent>

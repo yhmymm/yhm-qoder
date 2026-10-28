@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>研续 ResearchMemory — 有课题记忆的科研阅读助手</title>
+<meta name="description" content="基于 Open Notebook + PowerContext 1.4.1 的科研阅读助手，实现课题记忆持久化与跨会话接续">
+<style>
+:root {
+  --primary: #2563eb; --primary-dark: #1d4ed8; --primary-light: #dbeafe;
+  --accent: #0ea5e9; --accent-light: #e0f2fe;
+  --bg: #f8fafc; --card: #ffffff; --text: #0f172a; --text-secondary: #475569;
+  --border: #e2e8f0; --code-bg: #1e293b; --success: #10b981; --success-light: #d1fae5;
+  --warning: #f59e0b; --warning-light: #fef3c7;
+  --radius: 12px; --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
+  --shadow-lg: 0 10px 25px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.04);
+  --shadow-xl: 0 20px 40px -5px rgba(0,0,0,.1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace; font-size: .88em; }
+
+/* ── Hero ── */
+.hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #2563eb 100%);
+  color: #fff; padding: 100px 0 80px; text-align: center; position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 30% 50%, rgba(59,130,246,.3) 0%, transparent 70%),
+              radial-gradient(ellipse at 70% 30%, rgba(14,165,233,.2) 0%, transparent 60%);
+  pointer-events: none;
+}
+.hero::after {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M20 20l-4-4v8l4-4zm0 0l4 4v-8l-4 4z'/%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+}
+.hero > .container { position: relative; z-index: 1; }
+.hero h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+.hero h1 .en { font-size: 1.6rem; font-weight: 500; opacity: .8; display: block; margin-top: 4px; letter-spacing: 0; }
+.hero .subtitle { font-size: 1.4rem; opacity: .9; max-width: 600px; margin: 0 auto 12px; }
+.hero .tagline { font-size: 1rem; opacity: .6; margin-bottom: 32px; }
+.hero .badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 36px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.12); backdrop-filter: blur(8px);
+  padding: 7px 18px; border-radius: 24px; font-size: .85rem; font-weight: 500;
+  border: 1px solid rgba(255,255,255,.1);
+  transition: all .2s;
+}
+.badge:hover { background: rgba(255,255,255,.18); transform: translateY(-1px); }
+.badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+.badge .dot-green { background: #4ade80; }
+.badge .dot-blue { background: #60a5fa; }
+.hero .cta-group { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 10px; font-size: .95rem; font-weight: 600;
+  transition: all .2s; border: none; cursor: pointer;
+}
+.btn-primary { background: #fff; color: var(--primary-dark); }
+.btn-primary:hover { background: var(--primary-light); text-decoration: none; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.35); }
+.btn-outline:hover { background: rgba(255,255,255,.1); text-decoration: none; transform: translateY(-2px); }
+
+/* ── Nav ── */
+nav {
+  background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow);
+}
+nav .container { display: flex; gap: 2px; overflow-x: auto; padding: 6px 0; }
+nav a {
+  color: var(--text-secondary); text-decoration: none; font-size: .84rem; font-weight: 500;
+  padding: 8px 14px; border-radius: 8px; white-space: nowrap; transition: all .2s;
+}
+nav a:hover { color: var(--primary); background: var(--primary-light); text-decoration: none; }
+
+/* ── Sections ── */
+section { padding: 72px 0; }
+section:nth-child(even) { background: var(--card); }
+.section-label {
+  display: inline-block; font-size: .75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--primary); background: var(--primary-light);
+  padding: 4px 12px; border-radius: 6px; margin-bottom: 12px;
+}
+.section-title { font-size: 1.85rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.01em; }
+.section-desc { color: var(--text-secondary); margin-bottom: 40px; max-width: 640px; font-size: 1.02rem; }
+
+/* ── Problem / Solution ── */
+.ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.problem-box {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border: 1px solid #fde68a; border-radius: var(--radius); padding: 32px;
+}
+.problem-box h3 { color: #92400e; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.problem-box p { color: #78350f; font-size: .95rem; }
+.solution-box {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid #a7f3d0; border-radius: var(--radius); padding: 32px;
+}
+.solution-box h3 { color: #065f46; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.solution-box p { color: #064e3b; font-size: .95rem; }
+
+/* ── Feature Cards ── */
+.features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.feature-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  transition: all .25s; position: relative; overflow: hidden;
+}
+.feature-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-4px); border-color: var(--primary); }
+.feature-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  opacity: 0; transition: opacity .25s;
+}
+.feature-card:hover::before { opacity: 1; }
+.feature-card .icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; margin-bottom: 16px;
+  transition: transform .25s;
+}
+.feature-card:hover .icon { transform: scale(1.1); }
+.feature-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+.feature-card p { color: var(--text-secondary); font-size: .88rem; line-height: 1.65; }
+.feature-card ul { list-style: none; padding: 0; margin-top: 8px; }
+.feature-card ul li { padding: 2px 0; font-size: .85rem; color: var(--text-secondary); }
+.feature-card ul li::before { content: '→'; color: var(--primary); font-weight: 700; margin-right: 6px; }
+.icon-goal { background: #dbeafe; }
+.icon-continue { background: #fce7f3; }
+.icon-evidence { background: #e0e7ff; }
+.icon-report { background: #fef3c7; }
+.icon-revise { background: #d1fae5; }
+.icon-isolate { background: #ede9fe; }
+
+/* ── Demo Screenshots ── */
+.demo-section { margin-bottom: 56px; }
+.demo-section:last-child { margin-bottom: 0; }
+.demo-image-container {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg);
+  transition: all .3s;
+}
+.demo-image-container:hover { box-shadow: var(--shadow-xl); transform: translateY(-3px); }
+.demo-image-container img {
+  width: 100%; height: auto; display: block;
+  transition: transform .3s;
+}
+.demo-image-container:hover img {
+  transform: scale(1.01);
+}
+.demo-caption {
+  padding: 20px 28px; border-top: 1px solid var(--border);
+  background: linear-gradient(to bottom, #fafafa, #fff);
+}
+.demo-caption h4 {
+  font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+}
+.demo-caption p {
+  font-size: .9rem; color: var(--text-secondary); line-height: 1.65;
+}
+/* Notebook List Mockup */
+.mockup-notebooks { padding: 16px; }
+.mockup-sidebar {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 180px;
+  background: #f8fafc; border-right: 1px solid var(--border);
+  padding: 12px 10px;
+}
+.mockup-sidebar .logo { font-size: .75rem; font-weight: 700; color: var(--text); margin-bottom: 16px; padding-left: 6px; }
+.mockup-sidebar .nav-item {
+  font-size: .7rem; color: var(--text-secondary); padding: 6px 8px;
+  border-radius: 6px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;
+}
+.mockup-sidebar .nav-item.active { background: var(--primary); color: #fff; }
+.mockup-sidebar .nav-group { font-size: .6rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; margin: 12px 0 4px 8px; font-weight: 600; }
+.mockup-main { margin-left: 180px; padding: 16px 20px; }
+.mockup-main .page-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+.mockup-main .page-title .actions { display: flex; gap: 8px; }
+.mockup-main .page-title .actions span {
+  font-size: .65rem; padding: 4px 10px; border-radius: 6px;
+  background: var(--primary); color: #fff; font-weight: 600;
+}
+.mockup-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mockup-nb-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; transition: all .2s;
+}
+.mockup-nb-card .nb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 6px; }
+.mockup-nb-card .nb-name { font-size: .78rem; font-weight: 700; }
+.mockup-nb-card .nb-desc { font-size: .65rem; color: var(--text-secondary); margin-top: 4px; }
+.mockup-nb-card .nb-meta { font-size: .6rem; color: #94a3b8; margin-top: 8px; }
+/* Chat Mockup */
+.mockup-chat { padding: 16px; min-height: 280px; }
+.mockup-chat-header {
+  font-size: .85rem; font-weight: 700; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border); margin-bottom: 16px;
+}
+.chat-bubble {
+  max-width: 85%; padding: 10px 14px; border-radius: 12px;
+  margin-bottom: 12px; font-size: .78rem; line-height: 1.6;
+}
+.chat-bubble.user { background: var(--primary); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+.chat-bubble.ai { background: #f1f5f9; color: var(--text); border-bottom-left-radius: 4px; }
+.chat-bubble.ai .mem-ref { color: var(--primary); font-weight: 600; }
+.chat-input-mock {
+  margin-top: 16px; padding: 10px 14px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: .75rem; color: #94a3b8;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chat-input-mock .send-btn {
+  background: var(--primary); color: #fff; border: none;
+  padding: 4px 12px; border-radius: 6px; font-size: .7rem; font-weight: 600;
+}
+.demo-card .caption { padding: 14px 20px; font-size: .85rem; font-weight: 600; color: var(--text); }
+.demo-card .caption-desc { padding: 0 20px 16px; font-size: .8rem; color: var(--text-secondary); }
+
+/* ── Architecture ── */
+.arch-container { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+.arch-diagram {
+  background: var(--code-bg); color: #e2e8f0;
+  border-radius: var(--radius); padding: 28px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: .82rem; line-height: 2.2; overflow-x: auto; white-space: pre;
+  box-shadow: var(--shadow-lg);
+}
+.design-decisions h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+.decision-list { list-style: none; padding: 0; }
+.decision-list li {
+  padding: 12px 16px; border-left: 3px solid var(--primary);
+  background: var(--primary-light); border-radius: 0 8px 8px 0;
+  margin-bottom: 8px; font-size: .88rem;
+}
+.decision-list li strong { color: var(--primary-dark); }
+
+/* ── Tech Stack ── */
+.tech-table { width: 100%; border-collapse: separate; border-spacing: 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.tech-table th { background: var(--primary); color: #fff; padding: 14px 20px; text-align: left; font-weight: 600; font-size: .88rem; }
+.tech-table td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: .9rem; }
+.tech-table tr:last-child td { border-bottom: none; }
+.tech-table tr:nth-child(even) td { background: #f8fafc; }
+.tech-table tr:hover td { background: var(--primary-light); }
+
+/* ── Quick Start ── */
+.code-block {
+  background: var(--code-bg); color: #e2e8f0;
+  border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg);
+}
+.code-header {
+  background: #334155; padding: 10px 20px; font-size: .78rem; color: #94a3b8;
+  display: flex; align-items: center; gap: 8px;
+}
+.code-header .dots { display: flex; gap: 6px; }
+.code-header .dots span { width: 11px; height: 11px; border-radius: 50%; }
+.code-header .dots span:nth-child(1) { background: #ef4444; }
+.code-header .dots span:nth-child(2) { background: #f59e0b; }
+.code-header .dots span:nth-child(3) { background: #22c55e; }
+.code-block pre { padding: 24px; overflow-x: auto; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: .84rem; line-height: 1.9; }
+.code-block .comment { color: #64748b; }
+.code-block .cmd { color: #38bdf8; }
+
+/* ── Verification ── */
+.verify-card {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 2px solid #34d399; border-radius: var(--radius);
+  padding: 40px; text-align: center; box-shadow: var(--shadow-md);
+}
+.verify-number { font-size: 4rem; font-weight: 800; color: var(--success); line-height: 1; }
+.verify-label { font-size: 1.15rem; color: #065f46; margin-top: 8px; font-weight: 600; }
+.verify-items { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 28px; }
+.verify-tag {
+  background: #fff; border: 1px solid #a7f3d0; border-radius: 20px;
+  padding: 6px 16px; font-size: .82rem; color: #065f46; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.verify-tag::before { content: '✓'; color: var(--success); font-weight: 700; }
+
+/* ── Timeline ── */
+.timeline { position: relative; padding-left: 36px; }
+.timeline::before { content: ''; position: absolute; left: 13px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 28px; }
+.timeline-item::before {
+  content: ''; position: absolute; left: -29px; top: 6px;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 3px solid var(--primary); background: var(--card);
+}
+.timeline-item.done::before { background: var(--success); border-color: var(--success); }
+.timeline-item .phase { font-weight: 700; color: var(--primary); font-size: .88rem; }
+.timeline-item .phase-desc { color: var(--text-secondary); font-size: .9rem; margin-top: 2px; }
+.timeline-item .status-badge {
+  display: inline-block; font-size: .72rem; font-weight: 600;
+  padding: 2px 10px; border-radius: 12px; margin-top: 4px;
+}
+.status-done { background: var(--success-light); color: #065f46; }
+.status-progress { background: var(--warning-light); color: #92400e; }
+
+/* ── Links & Entry ── */
+.links-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.link-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  text-align: center; transition: all .25s;
+}
+.link-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--primary); }
+.link-card .link-icon { font-size: 2rem; margin-bottom: 12px; }
+.link-card h4 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+.link-card p { font-size: .85rem; color: var(--text-secondary); margin-bottom: 16px; }
+.link-card .link-btn {
+  display: inline-block; padding: 8px 20px; border-radius: 8px;
+  background: var(--primary); color: #fff; font-size: .85rem; font-weight: 600;
+  transition: all .2s;
+}
+.link-card .link-btn:hover { background: var(--primary-dark); text-decoration: none; }
+
+/* ── OSS ── */
+.oss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.oss-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+}
+.oss-card h4 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+.oss-card .license { font-size: .78rem; color: var(--primary); font-weight: 600; margin-bottom: 10px; }
+.oss-card p { font-size: .88rem; color: var(--text-secondary); }
+
+/* ── Footer ── */
+footer { background: #0f172a; color: #94a3b8; padding: 48px 0; text-align: center; font-size: .85rem; }
+footer a { color: #60a5fa; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+footer .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+
+/* ── Demo Mockup Types ── */
+.mockup-confirm { padding: 14px; }
+.mockup-confirm .confirm-header { font-size: .82rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.candidate-item {
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px; font-size: .75rem;
+}
+.candidate-item .cand-type {
+  display: inline-block; font-size: .62rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px; margin-bottom: 6px;
+}
+.cand-type-goal { background: #dbeafe; color: #1d4ed8; }
+.cand-type-conclusion { background: #d1fae5; color: #065f46; }
+.cand-type-question { background: #fef3c7; color: #92400e; }
+.cand-type-nextstep { background: #ede9fe; color: #5b21b6; }
+.candidate-item .cand-content { color: var(--text); line-height: 1.5; margin-bottom: 8px; }
+.candidate-item .cand-evidence { font-size: .65rem; color: #94a3b8; margin-bottom: 8px; }
+.candidate-item .cand-actions { display: flex; gap: 6px; }
+.cand-btn {
+  font-size: .62rem; padding: 3px 10px; border-radius: 5px; font-weight: 600; border: none; cursor: pointer;
+}
+.cand-btn-approve { background: var(--success); color: #fff; }
+.cand-btn-reject { background: #fee2e2; color: #dc2626; }
+.cand-btn-revise { background: var(--primary-light); color: var(--primary); }
+
+/* Report Mockup */
+.mockup-report { padding: 14px; }
+.mockup-report .report-header { font-size: .82rem; font-weight: 700; margin-bottom: 10px; }
+.report-section {
+  background: #fff; border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; margin-bottom: 6px; font-size: .72rem;
+}
+.report-section .rs-title { font-weight: 700; font-size: .7rem; color: var(--primary); margin-bottom: 4px; }
+.report-section .rs-content { color: var(--text-secondary); line-height: 1.5; }
+.report-section .rs-ref { color: var(--primary); font-weight: 600; }
+
+/* Memory Edit Mockup */
+.mockup-edit { padding: 14px; }
+.mockup-edit .edit-header { font-size: .82rem; font-weight: 700; margin-bottom: 10px; }
+.memory-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: #fff; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; font-size: .72rem;
+}
+.memory-row .mem-badge {
+  font-size: .6rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+}
+.mem-badge-active { background: var(--success-light); color: #065f46; }
+.mem-badge-forgotten { background: #fee2e2; color: #dc2626; text-decoration: line-through; }
+.memory-row .mem-text { flex: 1; color: var(--text); }
+.memory-row .mem-actions { display: flex; gap: 4px; }
+.mem-action-btn {
+  font-size: .6rem; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border);
+  background: #fff; cursor: pointer; color: var(--text-secondary);
+}
+.mem-action-btn:hover { border-color: var(--primary); color: var(--primary); }
+.etag-info { font-size: .62rem; color: #94a3b8; margin-top: 8px; padding: 6px 10px; background: #f8fafc; border-radius: 6px; }
+
+/* Evidence Q&A Mockup */
+.mockup-qa { padding: 14px; }
+.mockup-qa .qa-header { font-size: .82rem; font-weight: 700; margin-bottom: 10px; }
+.qa-context-box {
+  background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;
+  padding: 8px 10px; margin-bottom: 10px; font-size: .7rem;
+}
+.qa-context-box .ctx-label { font-weight: 700; color: #0369a1; font-size: .65rem; margin-bottom: 4px; }
+.qa-context-box .ctx-text { color: #0c4a6e; line-height: 1.5; }
+.qa-answer-box {
+  background: #fff; border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px; font-size: .72rem; line-height: 1.6;
+}
+.qa-answer-box .ans-source { color: #0369a1; }
+.qa-answer-box .ans-memory { color: #7c3aed; }
+.qa-answer-box .ans-suggest { color: #059669; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .features-grid { grid-template-columns: 1fr 1fr; }
+  .arch-container { grid-template-columns: 1fr; }
+  .links-grid { grid-template-columns: 1fr; }
+  .oss-grid { grid-template-columns: 1fr; }
+  .ps-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 2.8rem; }
+  .hero h1 .en { font-size: 1.3rem; }
+  .hero .subtitle { font-size: 1.2rem; }
+}
+@media (max-width: 640px) {
+  .hero h1 { font-size: 2.2rem; }
+  .hero h1 .en { font-size: 1.1rem; }
+  .hero .subtitle { font-size: 1.1rem; }
+  .hero .tagline { font-size: .9rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .section-title { font-size: 1.5rem; }
+  section { padding: 48px 0; }
+  .demo-caption { padding: 16px 20px; }
+  .demo-caption h4 { font-size: .95rem; }
+  .demo-caption p { font-size: .85rem; }
+  .badge { font-size: .78rem; padding: 6px 14px; }
+  .btn { padding: 10px 22px; font-size: .9rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ Hero ═══════ -->
+<header class="hero">
+  <div class="container">
+    <h1>研续<span class="en">ResearchMemory</span></h1>
+    <p class="subtitle">有课题记忆的科研阅读助手</p>
+    <p class="tagline">基于 Open Notebook + PowerContext 1.4.1 · 让 AI 记住你的研究进展</p>
+    <div class="badges">
+      <span class="badge"><span class="dot dot-green"></span> 19/19 验收通过</span>
+      <span class="badge"><span class="dot dot-green"></span> M0 – M6 全阶段完成</span>
+      <span class="badge"><span class="dot dot-blue"></span> Python 3.12</span>
+      <span class="badge"><span class="dot dot-blue"></span> Next.js 16</span>
+    </div>
+    <div class="cta-group">
+      <a href="#demo" class="btn btn-primary">📸 查看演示</a>
+      <a href="#quickstart" class="btn btn-outline">🚀 快速开始</a>
+      <a href="https://github.com/oceanbase/powercontext" target="_blank" class="btn btn-outline">⭐ GitHub</a>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════ Nav ═══════ -->
+<nav>
+  <div class="container">
+    <a href="#intro">简介</a>
+    <a href="#problem">问题</a>
+    <a href="#features">功能</a>
+    <a href="#demo">演示</a>
+    <a href="#architecture">架构</a>
+    <a href="#tech">技术栈</a>
+    <a href="#quickstart">运行</a>
+    <a href="#verify">验收</a>
+    <a href="#timeline">开发记录</a>
+    <a href="#links">入口</a>
+  </div>
+</nav>
+
+<!-- ═══════ Intro ═══════ -->
+<section id="intro">
+  <div class="container">
+    <span class="section-label">项目简介</span>
+    <h2 class="section-title">什么是研续？</h2>
+    <p class="section-desc">研续（ResearchMemory）是一个为科研阅读场景设计的 AI 助手，通过接入 PowerContext 记忆服务，实现课题目标的持久化保存与跨会话智能接续。</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
+        <div style="font-size:1.8rem;margin-bottom:8px;">🧠</div>
+        <h4 style="font-size:.95rem;font-weight:700;margin-bottom:6px;">持久化记忆</h4>
+        <p style="font-size:.85rem;color:var(--text-secondary);">研究目标、结论、问题和计划存储在 PowerContext 中，不依赖聊天历史，关闭浏览器后依然存在。</p>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
+        <div style="font-size:1.8rem;margin-bottom:8px;">🔄</div>
+        <h4 style="font-size:.95rem;font-weight:700;margin-bottom:6px;">跨会话接续</h4>
+        <p style="font-size:.85rem;color:var(--text-secondary);">新建对话时自动恢复上次研究状态，输入"继续上次研究"即可无缝衔接，无需重复说明背景。</p>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
+        <div style="font-size:1.8rem;margin-bottom:8px;">🔒</div>
+        <h4 style="font-size:.95rem;font-weight:700;margin-bottom:6px;">课题隔离</h4>
+        <p style="font-size:.85rem;color:var(--text-secondary);">每个 Notebook 绑定独立 Scope，课题 A 的记忆不会被课题 B 召回，确保研究上下文不混淆。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Problem ═══════ -->
+<section id="problem">
+  <div class="container">
+    <span class="section-label">解决的问题</span>
+    <h2 class="section-title">科研阅读的上下文断裂</h2>
+    <p class="section-desc">传统 AI 聊天工具无法跨会话保持研究记忆，导致每次都要重新建立上下文。</p>
+    <div class="ps-grid">
+      <div class="problem-box">
+        <h3>😩 痛点</h3>
+        <p>科研阅读中，课题目标、已确认结论、未解决问题和下一步计划<strong>散落在不同聊天会话</strong>中。隔几天继续研究时，需要重新说明课题背景，AI 无法自动恢复进展。多课题并行时，不同课题的信息更容易混淆。</p>
+      </div>
+      <div class="solution-box">
+        <h3>✅ 方案</h3>
+        <p><strong>研续</strong>通过 PowerContext 实现课题记忆的<strong>持久化保存与跨会话接续</strong>。四类结构化记忆（目标/结论/问题/计划）独立存储，每次新对话自动恢复研究状态，不依赖旧聊天记录。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Features ═══════ -->
+<section id="features">
+  <div class="container">
+    <span class="section-label">核心功能</span>
+    <h2 class="section-title">六大功能模块</h2>
+    <p class="section-desc">覆盖科研阅读全流程：从记忆管理到报告生成，从跨会话接续到课题隔离。</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon icon-goal">🎯</div>
+        <h3>四类研究记忆</h3>
+        <ul>
+          <li><strong>研究目标</strong> (goal)：本阶段要解决什么问题</li>
+          <li><strong>阅读结论</strong> (conclusion)：区分有依据/假设/用户陈述</li>
+          <li><strong>未解决问题</strong> (open_question)：仍需探索的方向</li>
+          <li><strong>下一步计划</strong> (next_step)：具体待办任务</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="icon icon-continue">🔄</div>
+        <h3>跨会话接续</h3>
+        <p>新建会话时输入"继续上次研究"，系统从 PowerContext 读取记忆，自动恢复目标、结论、问题和计划。不依赖旧聊天记录。</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon icon-evidence">📎</div>
+        <h3>带依据的阅读问答</h3>
+        <p>注入资料上下文 + 研究记忆，回复区分：<strong>资料说了什么</strong>、<strong>课题确认了什么</strong>、<strong>模型建议什么</strong>。</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon icon-report">📊</div>
+        <h3>组会报告生成</h3>
+        <p>一键生成 Markdown 研究报告，包含六部分：目标范围、材料发现、阶段进展、假设问题、下一步计划、引用清单。</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon icon-revise">✏️</div>
+        <h3>修订与遗忘</h3>
+        <ul>
+          <li>ETag 乐观并发修订，保留历史版本</li>
+          <li>从主动记忆移除（遗忘），历史可追溯</li>
+          <li>已遗忘内容不再参与新会话接续</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="icon icon-isolate">🔒</div>
+        <h3>课题隔离</h3>
+        <p>每个 Notebook 绑定独立 PowerContext Scope，课题 A 的记忆不会被课题 B 召回。最小粒度的课题隔离。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Demo ═══════ -->
+<section id="demo">
+  <div class="container">
+    <span class="section-label">功能演示</span>
+    <h2 class="section-title">界面与交互</h2>
+    <p class="section-desc">基于 Open Notebook 前端构建，提供完整的科研阅读工作流界面。以下为六大核心功能的实际运行截图。</p>
+    
+    <!-- 1. Notebook List -->
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature1-notebook-list.png" alt="课题管理界面">
+        <div class="demo-caption">
+          <h4>📋 课题管理</h4>
+          <p>左侧导航栏包含 Sources、Notebooks、Ask & Search、Models 四个模块。右侧 Notebook 卡片网格展示所有研究课题，每个卡片显示课题名称、英文描述、标签和统计信息。右上角「+ Create」按钮快速创建新课题。每个 Notebook 绑定独立的 PowerContext Scope，实现课题间的记忆隔离。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Cross-session Chat -->
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature2-cross-session.png" alt="跨会话接续界面">
+        <div class="demo-caption">
+          <h4>🔄 跨会话接续</h4>
+          <p>在 Chat 面板发送「继续上次研究」，系统自动从 PowerContext 读取 [M1]-[M4] 研究记忆（目标、结论、问题、计划），无缝衔接上次研究进度。AI 回复清晰展示研究目标、结论、待解决问题和下一步计划，不依赖旧聊天记录，记忆独立持久化。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Memory Confirmation -->
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature3-memory-confirmation1.png" alt="研究记忆管理界面">
+        <div class="demo-caption">
+          <h4>✅ 研究记忆管理</h4>
+          <p>在 Notebook 详情页点击「研究记忆」按钮，打开研究记忆管理对话框。显示当前所有研究记忆（如阅读结论、下一步计划、研究目标），每条记忆包含类型标签、内容摘要、版本号（rev.1）和操作按钮（修订、遗忘）。记忆按类型分组展示，便于快速浏览和管理。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature3-memory-confirmation2.png" alt="候选记忆确认界面">
+        <div class="demo-caption">
+          <h4>✅ 候选记忆确认</h4>
+          <p>点击「提取候选记忆」按钮，LLM 从资料中自动抽取结构化候选记忆。蓝色背景区域显示所有候选（如 4 条阅读结论），每条候选显示类型标签、内容摘要和证据来源编号。用户逐条确认、修订后确认或拒绝候选记忆，候选不会自动成为正式记忆，确保知识准确性。绿色「确认」按钮、蓝色「修订后确认」按钮、红色「拒绝」按钮清晰区分操作。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Evidence-based Q&A -->
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature4-evidence-qa1.png" alt="提问界面">
+        <div class="demo-caption">
+          <h4>📎 提问与搜索</h4>
+          <p>在「提问与搜索」页面，选择「提问 (beta)」标签，输入问题（如「总结 Text-to-SQL 的问题」）。系统展示推理过程和搜索词策略，从多个维度收集信息。支持选择 Notebook 范围和模型配置，点击「提问」按钮开始问答。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature4-evidence-qa2.png" alt="独立回答界面">
+        <div class="demo-caption">
+          <h4>📎 独立回答</h4>
+          <p>「独立回答」部分展示 AI 生成的结构化回答（如「Text-to-SQL 面临的主要问题总结」），包含模式链接、自然语言歧义、意图推断等核心技术挑战。回答中嵌入引用标注（如 [source_insight:xxx]、[note:xxx]），点击引用可查看原始资料或记忆详情，便于追溯知识来源。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature4-evidence-qa3.png" alt="最终回答界面">
+        <div class="demo-caption">
+          <h4>📎 最终回答</h4>
+          <p>「最终回答」区域以 Markdown 格式呈现完整的结构化总结（如「Text-to-SQL 问题总结」），包含引言概述和分节论述（如「模式链接 (Schema Linking) — 最突出的瓶颈」）。回答引用真实资料来源（如 [source:6yy9ejyfocz4442kubq1]），内容基于知识库文档生成，兼具学术严谨性与可读性。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature4-evidence-qa4.png" alt="搜索功能界面">
+        <div class="demo-caption">
+          <h4>📎 知识库搜索</h4>
+          <p>切换到「搜索」标签，输入关键词（如「schema」）即可在知识库中检索。支持文本搜索和向量搜索两种模式，可限定搜索范围（来源、笔记）。搜索结果按相关度排序，展示匹配的 PDF 文档标题和相关性分数，快速定位关键资料。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Report Generation -->
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature5-report.png" alt="组会报告生成界面">
+        <div class="demo-caption">
+          <h4>📊 组会报告生成</h4>
+          <p>一键生成六段式 Markdown 研究报告：研究目标、主要发现、未解决问题、下一步计划、引用清单。所有引用均关联到真实的记忆 ID 和资料来源，支持保存为 Notebook 笔记。报告格式规范，适合组会汇报和学术分享。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Memory Revision & Forget -->
+    <div class="demo-section">
+      <div class="demo-image-container">
+        <img src="image/feature6-memory-revision.png" alt="记忆修订与遗忘界面">
+        <div class="demo-caption">
+          <h4>✏️ 修订与遗忘</h4>
+          <p>在「研究记忆管理」对话框中，显示所有研究记忆列表，每条记忆包含类型标签（[M1] goal、[M2] conclusion、[M3] question 等）、内容摘要和操作按钮。支持 ETag 乐观并发修订，保留完整历史版本。可从主动记忆中移除（遗忘）条目，遗忘后历史仍可追溯，但不再参与新会话接续。底部显示 ETag 版本信息，确保并发安全。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Architecture ═══════ -->
+<section id="architecture">
+  <div class="container">
+    <span class="section-label">系统架构</span>
+    <h2 class="section-title">技术架构与设计决策</h2>
+    <p class="section-desc">基于 Open Notebook 扩展，PowerContext 作为独立记忆服务通过 HTTP API 接入。</p>
+    <div class="arch-container">
+      <div class="arch-diagram">用户 → Open Notebook 前端
+         (Next.js / React, port 3000)
+         ↓
+     FastAPI 业务接口 (port 5055)
+         ↓
+     ┌───┴────────────┐
+     ↓                ↓
+  原有服务          新增课题记忆服务
+     ↓                ↓
+  SurrealDB        PowerContext Server
+  (port 8000)        1.4.1 (port 8001)
+                       ↓
+                   SQLite (独立持久化)</div>
+      <div class="design-decisions">
+        <h3>关键设计决策</h3>
+        <ul class="decision-list">
+          <li><strong>一个 Notebook = 一个 Scope</strong> — 课题隔离的最小粒度</li>
+          <li><strong>业务 JSON 序列化为 text</strong> — research-memory.v1 schema 存入 Atomic Memory</li>
+          <li><strong>不臆造 API / ID / ETag</strong> — 所有引用来自真实 PowerContext 响应</li>
+          <li><strong>候选不自动成为记忆</strong> — 必须经用户逐条确认</li>
+          <li><strong>记忆不进入聊天 checkpoint</strong> — 通过请求参数注入，不持久追加为消息</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Tech Stack ═══════ -->
+<section id="tech">
+  <div class="container">
+    <span class="section-label">技术栈</span>
+    <h2 class="section-title">技术选型</h2>
+    <p class="section-desc">基于成熟的开源组件构建，不重复造轮子。</p>
+    <table class="tech-table">
+      <thead><tr><th>组件</th><th>技术</th><th>版本</th></tr></thead>
+      <tbody>
+        <tr><td>前端</td><td>Next.js / React</td><td>16.3.8</td></tr>
+        <tr><td>后端</td><td>FastAPI / Python</td><td>3.12</td></tr>
+        <tr><td>原有数据库</td><td>SurrealDB</td><td>2.2.1</td></tr>
+        <tr><td>记忆服务</td><td>PowerContext Server</td><td>1.4.1</td></tr>
+        <tr><td>AI 框架</td><td>LangChain / LangGraph</td><td>—</td></tr>
+        <tr><td>LLM</td><td>DeepSeek API (v4flash)</td><td>—</td></tr>
+        <tr><td>部署</td><td>Docker Compose</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════ Quick Start ═══════ -->
+<section id="quickstart">
+  <div class="container">
+    <span class="section-label">运行说明</span>
+    <h2 class="section-title">快速开始</h2>
+    <p class="section-desc">5 个命令完成从零到验收的全流程。</p>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="dots"><span></span><span></span><span></span></div>
+        bash — 终端命令
+      </div>
+      <pre><span class="comment"># 1. 克隆仓库并进入项目目录</span>
+<span class="cmd">git</span> clone https://github.com/oceanbase/powercontext.git
+<span class="cmd">cd</span> powercontext && git checkout feat/qoder
+
+<span class="comment"># 2. 初始化环境（安装依赖、配置服务）</span>
+<span class="cmd">python</span> qoder/scripts/bootstrap.py
+
+<span class="comment"># 3. 启动全部服务（SurrealDB + PowerContext + Open Notebook）</span>
+<span class="cmd">docker</span> compose --env-file qoder/deploy/.env \
+           -f qoder/deploy/compose.yaml up --build -d
+
+<span class="comment"># 4. 健康检查 + 导入演示数据</span>
+<span class="cmd">python</span> qoder/scripts/healthcheck.py
+<span class="cmd">python</span> qoder/scripts/seed_demo.py
+
+<span class="comment"># 5. 运行验收测试（19 项检查）</span>
+<span class="cmd">python</span> qoder/scripts/verify_acceptance.py</pre>
+    </div>
+    <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:8px;">📋 前置要求</h4>
+        <ul style="list-style:none;padding:0;font-size:.85rem;color:var(--text-secondary);">
+          <li style="padding:3px 0;">→ Python 3.11+（推荐 3.12）</li>
+          <li style="padding:3px 0;">→ Node.js 18.18+（前端需要）</li>
+          <li style="padding:3px 0;">→ Docker & Docker Compose</li>
+          <li style="padding:3px 0;">→ LLM API Key（如 DeepSeek）</li>
+        </ul>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:8px;">🔗 服务端口</h4>
+        <ul style="list-style:none;padding:0;font-size:.85rem;color:var(--text-secondary);">
+          <li style="padding:3px 0;">→ 前端界面：http://localhost:3000</li>
+          <li style="padding:3px 0;">→ API 服务：http://localhost:5055</li>
+          <li style="padding:3px 0;">→ PowerContext：http://localhost:8001</li>
+          <li style="padding:3px 0;">→ SurrealDB：http://localhost:8000</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Verification ═══════ -->
+<section id="verify">
+  <div class="container">
+    <span class="section-label">验证样例</span>
+    <h2 class="section-title">验收结果</h2>
+    <p class="section-desc">8 个步骤、19 项检查全部通过，覆盖完整功能链路。</p>
+    <div class="verify-card">
+      <div class="verify-number">19 / 19</div>
+      <div class="verify-label">All acceptance checks passed ✓</div>
+      <div class="verify-items">
+        <span class="verify-tag">健康检查</span>
+        <span class="verify-tag">Scope 绑定</span>
+        <span class="verify-tag">记忆确认</span>
+        <span class="verify-tag">PowerContext 直读</span>
+        <span class="verify-tag">跨会话接续</span>
+        <span class="verify-tag">课题隔离</span>
+        <span class="verify-tag">报告生成</span>
+        <span class="verify-tag">修订与遗忘</span>
+      </div>
+    </div>
+    <div style="margin-top:28px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
+      <h4 style="font-size:.95rem;font-weight:700;margin-bottom:12px;">📝 验收脚本覆盖的检查项</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.85rem;color:var(--text-secondary);">
+        <div>1. 服务健康检查（4 项）</div>
+        <div>2. Notebook ↔ Scope 绑定</div>
+        <div>3. 记忆创建与确认</div>
+        <div>4. PowerContext 直接读取验证</div>
+        <div>5. 跨会话接续上下文注入</div>
+        <div>6. 课题隔离（A ≠ B）</div>
+        <div>7. 报告生成与引用校验</div>
+        <div>8. ETag 修订与遗忘机制</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Timeline ═══════ -->
+<section id="timeline">
+  <div class="container">
+    <span class="section-label">Qoder 开发记录</span>
+    <h2 class="section-title">开发历程</h2>
+    <p class="section-desc">从上游固定到发布上线，7 个阶段递进交付，全程在 Qoder IDE 中完成。</p>
+    <div class="timeline">
+      <div class="timeline-item done">
+        <div class="phase">M0 — 上游固定与探针</div>
+        <div class="phase-desc">固定 Open Notebook 源码版本 (a0f6f308)，安装 PowerContext 1.4.1，完成 15 步记忆 API 探针</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+      <div class="timeline-item done">
+        <div class="phase">M1 — 课题绑定与手工记忆闭环</div>
+        <div class="phase-desc">Notebook ↔ Scope 绑定，手动创建/读取/修订 Atomic Memory，验证完整生命周期</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+      <div class="timeline-item done">
+        <div class="phase">M2 — 跨会话接续与聊天集成</div>
+        <div class="phase-desc">上下文组装（12000 字节预算）、[M编号]记忆引用、系统提示词注入，DeepSeek 正确接续</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+      <div class="timeline-item done">
+        <div class="phase">M3 — 模型抽取、ETag 修订与遗忘</div>
+        <div class="phase-desc">LLM 从资料中抽取结构化候选，乐观并发修订，遗忘机制，证据编号校验</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+      <div class="timeline-item done">
+        <div class="phase">M4 — 组会报告、引用校验与导出</div>
+        <div class="phase-desc">6 段式 Markdown 报告生成，引用清单完整性校验，保存为 Notebook 笔记</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+      <div class="timeline-item done">
+        <div class="phase">M5 — Docker Compose 与验收脚本</div>
+        <div class="phase-desc">3 服务编排（SurrealDB + PowerContext + Open Notebook），19 项自动化验收全通过</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+      <div class="timeline-item done">
+        <div class="phase">M6 — 项目网站与 Qoder Sites 发布</div>
+        <div class="phase-desc">项目展示网站构建，通过 Qoder Sites 发布为公开可访问站点</div>
+        <span class="status-badge status-done">✅ 完成</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Links & Entry ═══════ -->
+<section id="links">
+  <div class="container">
+    <span class="section-label">体验入口</span>
+    <h2 class="section-title">项目链接</h2>
+    <p class="section-desc">代码仓库、在线演示和文档入口。</p>
+    <div class="links-grid">
+      <div class="link-card">
+        <div class="link-icon">⭐</div>
+        <h4>代码仓库</h4>
+        <p>GitHub 开源仓库<br>分支：feat/qoder</p>
+        <a href="https://github.com/oceanbase/powercontext" target="_blank" class="link-btn">访问 GitHub →</a>
+      </div>
+      <div class="link-card">
+        <div class="link-icon">🌐</div>
+        <h4>项目网站</h4>
+        <p>Qoder Sites 公开发布<br>在线项目展示页</p>
+        <a href="#" class="link-btn">访问网站 →</a>
+      </div>
+      <div class="link-card">
+        <div class="link-icon">🚀</div>
+        <h4>本地体验</h4>
+        <p>克隆仓库后运行<br>bootstrap.py 一键启动</p>
+        <a href="#quickstart" class="link-btn">查看说明 →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Open Source ═══════ -->
+<section id="oss">
+  <div class="container">
+    <span class="section-label">开源复用</span>
+    <h2 class="section-title">站在巨人肩膀上</h2>
+    <p class="section-desc">复用成熟开源项目，不重复造轮子。</p>
+    <div class="oss-grid">
+      <div class="oss-card">
+        <h4>Open Notebook</h4>
+        <div class="license">MIT License · Copyright 2024 Luis Novo</div>
+        <p>复用资料导入、笔记、聊天、前后端框架。源码固定版本 <code>a0f6f308</code> 纳入 <code>qoder/app/</code>。</p>
+      </div>
+      <div class="oss-card">
+        <h4>PowerContext</h4>
+        <div class="license">Apache License 2.0</div>
+        <p>作为独立 Server 通过 HTTP API 接入，不修改源码。版本 1.4.1，提供记忆持久化、检索、交接报告等核心能力。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ Footer ═══════ -->
+<footer>
+  <div class="container">
+    <div class="footer-links">
+      <a href="https://github.com/oceanbase/powercontext" target="_blank">GitHub 仓库</a>
+      <a href="#features">核心功能</a>
+      <a href="#quickstart">快速开始</a>
+      <a href="#timeline">开发记录</a>
+    </div>
+    <p>研续 ResearchMemory · 基于 <a href="https://github.com/oceanbase/powercontext" target="_blank">PowerContext</a> 构建</p>
+    <p style="margin-top:8px;">仓库：<a href="https://github.com/oceanbase/powercontext" target="_blank">github.com/oceanbase/powercontext</a> · 分支：<code>feat/qoder</code></p>
+  </div>
+</footer>
+
+</body>
+</html>

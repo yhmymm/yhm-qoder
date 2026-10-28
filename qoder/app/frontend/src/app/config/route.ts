@@ -70,46 +70,10 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // Priority 2: Auto-detect from request headers
-  try {
-    // Get the protocol (http or https)
-    // Check X-Forwarded-Proto first (for reverse proxies), then fallback to request scheme.
-    // Only ever trust "http"/"https" - reject anything else a spoofed or
-    // misconfigured-proxy header might supply.
-    const rawProto = request.headers.get('x-forwarded-proto') ||
-                  request.nextUrl.protocol.replace(':', '') ||
-                  'http'
-    const proto = rawProto === 'https' ? 'https' : 'http'
-
-    // Get the host header (includes port if non-standard)
-    const hostHeader = request.headers.get('host')
-
-    if (hostHeader) {
-      // Extract just the hostname (remove port if present), bracket-aware
-      // for IPv6 literals.
-      const hostname = extractHostname(hostHeader)
-
-      if (hostname && isValidHostname(hostname)) {
-        // hostname already carries brackets for IPv6 literals, so this
-        // yields e.g. http://[::1]:5055, not a mangled http://::1:5055
-        const apiUrl = `${proto}://${hostname}:5055`
-
-        console.log(`[runtime-config] Auto-detected API URL: ${apiUrl} (proto=${proto}, host=${hostHeader})`)
-
-        return NextResponse.json({
-          apiUrl,
-        })
-      }
-
-      console.warn(`[runtime-config] Rejected malformed Host header, falling back to localhost: ${hostHeader}`)
-    }
-  } catch (error) {
-    console.error('[runtime-config] Auto-detection failed:', error)
-  }
-
-  // Priority 3: Fallback to localhost
-  console.log('[runtime-config] Using fallback: http://localhost:5055')
+  // Priority 2: Return empty string to use relative paths (Next.js rewrites proxy)
+  // This works in all deployment scenarios: local, container, remote IDE, etc.
+  console.log('[runtime-config] Using relative path (rewrites proxy)')
   return NextResponse.json({
-    apiUrl: 'http://localhost:5055',
+    apiUrl: '',
   })
 }

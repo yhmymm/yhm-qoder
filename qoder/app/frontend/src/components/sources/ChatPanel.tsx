@@ -1,13 +1,14 @@
 'use client'
 
 import { memo, useCallback, useState, useRef, useEffect, useId } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Bot, User, Send, Loader2, FileText, Lightbulb, StickyNote, Clock } from 'lucide-react'
+import { Bot, User, Send, Loader2, FileText, Lightbulb, StickyNote, Clock, Brain } from 'lucide-react'
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer'
 import {
   SourceChatMessage,
@@ -22,6 +23,12 @@ import { convertReferencesToCompactMarkdown, createCompactReferenceLinkComponent
 import { useModalManager } from '@/lib/hooks/use-modal-manager'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/hooks/use-translation'
+
+// Lazy load research memory panel to avoid loading it unless needed
+const ResearchMemoryPanelLazy = dynamic(
+  () => import('@/components/research/ResearchMemoryPanel').then(mod => ({ default: mod.ResearchMemoryPanel })),
+  { loading: () => <div className="text-center py-8 text-muted-foreground">加载中...</div> }
+)
 
 interface NotebookContextStats {
   sourcesInsights: number
@@ -76,6 +83,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const { t } = useTranslation()
   const [sessionManagerOpen, setSessionManagerOpen] = useState(false)
+  const [researchMemoryOpen, setResearchMemoryOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { openModal } = useModalManager()
@@ -111,7 +119,19 @@ export function ChatPanel({
             {title || (contextType === 'source' ? t('chat.chatWith', { name: t('navigation.sources') }) : t('chat.chatWith', { name: t('common.notebook') }))}
           </CardTitle>
           {onSelectSession && onCreateSession && onDeleteSession && (
-            <Dialog open={sessionManagerOpen} onOpenChange={setSessionManagerOpen}>
+            <div className="flex gap-2">
+              {notebookId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground"
+                  onClick={() => setResearchMemoryOpen(true)}
+                >
+                  <Brain className="h-4 w-4" />
+                  <span className="text-xs">研究记忆</span>
+                </Button>
+              )}
+              <Dialog open={sessionManagerOpen} onOpenChange={setSessionManagerOpen}>
               <Button
                 variant="ghost"
                 size="sm"
@@ -138,6 +158,7 @@ export function ChatPanel({
                 />
               </DialogContent>
             </Dialog>
+            </div>
           )}
         </div>
       </CardHeader>
@@ -224,6 +245,21 @@ export function ChatPanel({
         />
       </CardContent>
     </Card>
+
+    {/* Research Memory Dialog */}
+    {notebookId && (
+      <Dialog open={researchMemoryOpen} onOpenChange={setResearchMemoryOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-teal" />
+            研究记忆管理
+          </DialogTitle>
+          <div className="flex-1 overflow-y-auto">
+            <ResearchMemoryPanelLazy notebookId={notebookId} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
 
     </>
   )
