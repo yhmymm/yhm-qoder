@@ -71,7 +71,7 @@
 
 ### 课题管理
 
-![课题管理](yhm-qoder/qoder/site/image/feature1-notebook-list.png)
+![课题管理](/yhm-qoder/qoder/site/image/feature1-notebook-list.png)
 
 左侧导航栏包含 Sources、Notebooks、Ask & Search、Models 四个模块。右侧 Notebook 卡片网格展示所有研究课题，每个 Notebook 绑定独立的 PowerContext Scope。
 
